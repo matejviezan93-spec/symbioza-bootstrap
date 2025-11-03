@@ -67,6 +67,11 @@ done
 # --- start docker stack ---
 echo "🚀 Starting Symbióza stack..."
 docker compose down -v || true
+# --- deep port kill (tcp6/tcp4 fallback) ---
+for p in 8000 8080 5432 9090 3000; do
+  fuser -k ${p}/tcp || true
+  fuser -k ${p}/tcp6 || true
+done
 docker compose up -d --build
 
 echo "✅ Bootstrap complete. Stack running."
