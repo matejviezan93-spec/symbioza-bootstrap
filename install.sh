@@ -2,7 +2,7 @@
 set -euo pipefail
 echo "🧬 Symbióza Bootstrap starting..."
 
-# --- remove any conflicting docker packages first ---
+# --- remove old docker variants ---
 echo "🧹 Cleaning old Docker packages..."
 apt-get remove -y docker.io docker-doc docker-compose docker-compose-plugin \
   docker-buildx docker-buildx-plugin containerd runc || true
@@ -11,8 +11,8 @@ apt-get clean
 dpkg --configure -a || true
 rm -rf /var/lib/dpkg/lock* /var/cache/apt/archives/lock
 
-# --- add official Docker CE repository ---
-echo "⚙️ Setting up official Docker repository..."
+# --- install official docker repo ---
+echo "⚙️ Installing official Docker CE..."
 apt-get update -y
 apt-get install -y ca-certificates curl gnupg lsb-release
 mkdir -p /etc/apt/keyrings
@@ -22,11 +22,9 @@ echo \
   https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
   | tee /etc/apt/sources.list.d/docker.list > /dev/null
 apt-get update -y
-
-# --- install official Docker CE + Compose plugin ---
 apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-# --- install other dependencies ---
+# --- base deps ---
 apt-get install -y git sudo ufw
 
 # --- create codex user ---
@@ -49,10 +47,25 @@ cp ../symbioza-bootstrap/.env.template .env
 cp ../symbioza-bootstrap/codex-boost.sh ./codex-boost.sh
 chmod +x ./codex-boost.sh
 
-# --- add autostart ---
+# --- autostart ---
 grep -q codex-boost /etc/crontab || echo "@reboot root cd /root/Baileys-Bridge && ./codex-boost.sh" >> /etc/crontab
 
-# --- build & start stack ---
+# --- kill existing containers & free ports ---
+echo "🔌 Checking for old containers..."
+docker ps -q | xargs -r docker stop || true
+docker ps -a -q | xargs -r docker rm -f || true
+
+# --- free any occupied ports (8000,8080,5432,9090,3000) ---
+for p in 8000 8080 5432 9090 3000; do
+  pid=$(lsof -ti :$p || true)
+  if [ -n "$pid" ]; then
+    echo "⚠️ Port $p in use by PID $pid — killing..."
+    kill -9 $pid || true
+  fi
+done
+
+# --- start docker stack ---
+echo "🚀 Starting Symbióza stack..."
 docker compose down -v || true
 docker compose up -d --build
 
