@@ -69,6 +69,11 @@ echo "🚀 Starting Symbióza stack..."
 docker compose down -v || true
 # --- deep port kill (tcp6/tcp4 fallback) ---
 for p in 8000 8080 5432 9090 3000; do
+  pid=$(lsof -t -i:$p || ss -lptn 'sport = :'$p' ' | awk '{print $7}' | grep -o '[0-9]*' | head -n1)
+  if [ -n "$pid" ]; then
+	    echo "⚠️ Killing process $pid on port $p"
+	      kill -9 "$pid" || true
+  fi
   fuser -k ${p}/tcp || true
   fuser -k ${p}/tcp6 || true
 done
